@@ -1,4 +1,15 @@
 apply plugin: 'com.android.library'
+apply plugin: 'com.novoda.bintray-release'
+publish {
+    userOrg = 'moonjr'
+    groupId = 'simpleimagedownloadview'
+    artifactId = 'com.moonjr.simpleimagedownloadview'
+    publishVersion = '0.1.0'
+    desc = 'Images can be configured simply in view of the resource asynchronously from a URL'
+    website = 'https://github.com/MoonJR/SimpleImageDownloadView'
+    issueTracker = "${website}/issues"
+    repository = "${website}.git"
+}
 
 android {
     compileSdkVersion 23
