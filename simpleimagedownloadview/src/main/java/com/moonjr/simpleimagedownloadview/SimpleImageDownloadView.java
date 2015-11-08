@@ -2,18 +2,14 @@ package com.moonjr.simpleimagedownloadview;
 
 import android.annotation.TargetApi;
 import android.content.Context;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.os.Build;
 import android.support.annotation.Nullable;
 import android.util.AttributeSet;
 import android.widget.ImageView;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.InputStream;
-import java.lang.ref.WeakReference;
+import com.moonjr.simpleimagedownloadview.listener.OnDownloadListener;
+import com.moonjr.simpleimagedownloadview.thread.ImageDownloadThread;
+
 import java.net.URL;
 
 /**
@@ -22,6 +18,8 @@ import java.net.URL;
 public class SimpleImageDownloadView extends ImageView {
 
     private Context mContext;
+    private boolean isCache = true;
+    private OnDownloadListener mOnDownloadListener;
 
 
     public SimpleImageDownloadView(Context context) {
@@ -45,83 +43,25 @@ public class SimpleImageDownloadView extends ImageView {
         this.mContext = context;
     }
 
+    public void setmContext(boolean isCache) {
+        this.isCache = isCache;
+    }
+
+    public boolean isCache() {
+        return isCache;
+    }
+
+    public void setOnDownloadListener(OnDownloadListener listener) {
+        mOnDownloadListener = listener;
+    }
+
 
     public void setImageURL(@Nullable URL url) {
-
+        ImageDownloadThread thread = new ImageDownloadThread(mContext, this, url);
+        thread.setCache(isCache);
+        thread.setOnDownloadListener(mOnDownloadListener);
+        thread.start();
     }
 
-    private class DownloadThumbsImageThread extends Thread {
-        private URL url;
-        private ImageView mImageView;
-        private Context mContext;
-
-        private int sampleSize;
-
-        public DownloadThumbsImageThread(Context contex, URL url) {
-            this.mContext = contex;
-            this.url = url;
-            this.mImageView = SimpleImageDownloadView.this;
-            Thread preThread = (Thread) mImageView.getTag();
-            if (preThread != null) {
-                preThread.interrupt();
-            }
-            this.mImageView.setTag(this);
-            this.sampleSize = 1;
-        }
-
-        public DownloadThumbsImageThread(Context contex, URL url, int sampleSize) {
-            this(contex, url);
-            this.sampleSize = sampleSize;
-        }
-
-
-        @Override
-        public void run() {
-
-            InputStream imageStream = null;
-
-            try {
-                final Bitmap image;
-
-                BitmapFactory.Options options = new BitmapFactory.Options();
-                options.inSampleSize = sampleSize;
-
-
-                File cacheImageFile = new File(mContext.getExternalCacheDir(), url.hashCode() + "");
-                if (cacheImageFile.exists()) {
-                    imageStream = new FileInputStream(cacheImageFile);
-                    image = BitmapFactory.decodeStream(imageStream);
-                } else {
-                    imageStream = this.url.openConnection().getInputStream();
-                    image = BitmapFactory.decodeStream(imageStream, null, options);
-                    FileOutputStream outputStream = new FileOutputStream(new File(mContext.getExternalCacheDir(), url.hashCode() + ""));
-                    image.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
-                    outputStream.close();
-                }
-
-                if (image != null) {
-                    mImageView.post(new Runnable() {
-                        @Override
-                        public void run() {
-                            mImageView.setImageBitmap(image);
-                            mImageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
-                            new WeakReference<>(image);
-                        }
-                    });
-
-                }
-
-            } catch (Exception e) {
-                if (imageStream != null) {
-                    try {
-                        imageStream.close();
-                    } catch (Exception e1) {
-                        e1.printStackTrace();
-                    }
-                }
-            }
-
-        }
-    }
 
 }
