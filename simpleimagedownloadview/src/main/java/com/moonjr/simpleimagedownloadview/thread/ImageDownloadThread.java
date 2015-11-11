@@ -26,7 +26,10 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
 
     private final String TAG = ImageDownloadThread.class.getSimpleName();
 
-    private OnDownloadListener mOnDownloadListener;
+    private static boolean isDebugMode = false;
+
+    private OnDownloadListener mOnDownloadListenerDefault;
+    private OnDownloadListener mOnDownloadListenerUser;
 
     private URL url;
     private ImageView mImageView;
@@ -46,7 +49,7 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
         }
         this.mImageView.setTag(this);
         this.sampleSize = 1;
-        this.mOnDownloadListener = this;
+        this.mOnDownloadListenerDefault = this;
         this.isCache = true;
     }
 
@@ -56,11 +59,7 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
     }
 
     public void setOnDownloadListener(@Nullable OnDownloadListener onDownloadListener) {
-        if (onDownloadListener != null) {
-            this.mOnDownloadListener = onDownloadListener;
-        } else {
-            mOnDownloadListener = this;
-        }
+        this.mOnDownloadListenerUser = onDownloadListener;
     }
 
     public void setSampleSize(int sampleSize) {
@@ -104,7 +103,7 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
         throwException();
 
         try {
-            mOnDownloadListener.onStartImageDownload(url);
+            mOnDownloadListenerDefault.onStartImageDownload(url);
 
             final Bitmap image;
 
@@ -124,11 +123,11 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
 
             setImageView(image, mImageView);
 
-            mOnDownloadListener.onFinishedImageDownload(true, isCachedImage);
+            mOnDownloadListenerDefault.onFinishedImageDownload(true, isCachedImage);
 
         } catch (Exception e) {
-            mOnDownloadListener.onFailedDownloadImage(e);
-            mOnDownloadListener.onFinishedImageDownload(false, isCachedImage);
+            mOnDownloadListenerDefault.onFailedDownloadImage(e);
+            mOnDownloadListenerDefault.onFinishedImageDownload(false, isCachedImage);
         }
 
     }
@@ -164,27 +163,54 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
         }
     }
 
+    public static void setDebugMode(boolean debugMode) {
+        isDebugMode = debugMode;
+    }
+
+    public static boolean isDebugMode() {
+        return isDebugMode;
+    }
+
+
     @Override
     public void onStartImageDownload(URL downloadURL) {
-        Log.d(TAG, "Start Download Image from " + downloadURL);
+        if (isDebugMode) {
+            Log.d(TAG, "Start Download Image from " + downloadURL);
+        }
+
+        if (mOnDownloadListenerUser != null) {
+            mOnDownloadListenerUser.onStartImageDownload(downloadURL);
+        }
     }
 
     @Override
     public void onFinishedImageDownload(boolean isSuccess, boolean isCached) {
-        if (isSuccess) {
-            Log.d(TAG, "Success download!!!");
-            if (isCached) {
-                Log.d(TAG, "image is cached image");
+
+        if (isDebugMode) {
+            if (isSuccess) {
+                Log.d(TAG, "Success download!!!");
+                if (isCached) {
+                    Log.d(TAG, "image is cached image");
+                }
+            } else {
+                Log.d(TAG, "Fail download!!!");
             }
-        } else {
-            Log.d(TAG, "Fail download!!!");
+        }
+
+        if (mOnDownloadListenerUser != null) {
+            mOnDownloadListenerUser.onFinishedImageDownload(isSuccess, isCached);
         }
 
     }
 
     @Override
     public void onFailedDownloadImage(Exception e) {
-        Log.d(TAG, "Download Error!!!" + e.getMessage(), e);
-
+        if (isDebugMode) {
+            Log.d(TAG, "Download Error!!!" + e.getMessage(), e);
+        }
+        if (mOnDownloadListenerUser != null) {
+            mOnDownloadListenerUser.onFailedDownloadImage(e);
+        }
     }
+
 }
