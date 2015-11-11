@@ -7,11 +7,11 @@ import android.support.annotation.Nullable;
 import android.util.Log;
 import android.widget.ImageView;
 
-import com.moonjr.simpleimagedownloadview.SimpleImageDownloadView;
 import com.moonjr.simpleimagedownloadview.listener.OnDownloadListener;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,6 +39,8 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
 
     private int sampleSize;
 
+    private long cacheTimeout;
+
     public ImageDownloadThread(Context context, ImageView mImageView, URL url) {
         this.mContext = context;
         this.url = url;
@@ -51,6 +53,7 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
         this.sampleSize = 1;
         this.mOnDownloadListenerDefault = this;
         this.isCache = true;
+        this.cacheTimeout = Long.MAX_VALUE;
     }
 
     public ImageDownloadThread(Context context, ImageView mImageView, URL url, int sampleSize) {
@@ -96,39 +99,46 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
         }
     }
 
+    private boolean isCachedImage = false;
+
     @Override
     public void run() {
-        boolean isCachedImage = false;
-
         throwException();
-
         try {
             mOnDownloadListenerDefault.onStartImageDownload(url);
-
             final Bitmap image;
-
             if (isCache) {
-                File cacheImageFile = new File(mContext.getExternalCacheDir(), url.hashCode() + "");
-                if (cacheImageFile.exists()) {
-                    InputStream imageStream = new FileInputStream(cacheImageFile);
-                    image = BitmapFactory.decodeStream(imageStream);
-                    imageStream.close();
-                    isCachedImage = true;
+                File cacheImageFile = getCacheFile(mContext, url);
+                if (cacheImageFile != null) {
+                    image = isCachTimeout(cacheImageFile) ? getImageURL(url) : getImageCache(cacheImageFile);
                 } else {
                     image = getImageURL(url);
                 }
             } else {
                 image = getImageURL(url);
             }
-
             setImageView(image, mImageView);
-
             mOnDownloadListenerDefault.onFinishedImageDownload(true, isCachedImage);
-
         } catch (Exception e) {
             mOnDownloadListenerDefault.onFailedDownloadImage(e);
             mOnDownloadListenerDefault.onFinishedImageDownload(false, isCachedImage);
         }
+
+    }
+
+    private boolean isCachTimeout(File cacheImageFile) {
+        long nowTime = System.currentTimeMillis();
+        long fileModTime = cacheImageFile.lastModified();
+
+        return nowTime - fileModTime > getCacheTimeout();
+    }
+
+    private File getCacheFile(Context mContext, URL url) {
+        //if cache file not exist return null;
+
+        File cacheImageFile = new File(mContext.getExternalCacheDir(), url.hashCode() + "");
+        isCachedImage = true;
+        return cacheImageFile.exists() ? cacheImageFile : null;
 
     }
 
@@ -144,9 +154,17 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
             image.compress(Bitmap.CompressFormat.JPEG, 100, outputStream);
             outputStream.close();
         }
+        isCachedImage = false;
 
         return image;
 
+    }
+
+    private Bitmap getImageCache(File cacheImageFile) throws IOException {
+        InputStream imageStream = new FileInputStream(cacheImageFile);
+        Bitmap image = BitmapFactory.decodeStream(imageStream);
+        imageStream.close();
+        return image;
     }
 
     private void setImageView(final Bitmap image, final ImageView mImageView) {
@@ -169,6 +187,14 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
 
     public static boolean isDebugMode() {
         return isDebugMode;
+    }
+
+    public void setCacheTimeout(long cacheTimeout) {
+        this.cacheTimeout = cacheTimeout;
+    }
+
+    public long getCacheTimeout() {
+        return this.cacheTimeout;
     }
 
 
@@ -212,5 +238,6 @@ public class ImageDownloadThread extends Thread implements OnDownloadListener {
             mOnDownloadListenerUser.onFailedDownloadImage(e);
         }
     }
+
 
 }
